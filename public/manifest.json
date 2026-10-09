@@ -1,0 +1,25 @@
+{
+  "short_name": "RoomSplit",
+  "name": "RoomSplit - Shared Room Financial Manager",
+  "description": "Production-ready room finance, expense, reimbursement, and monthly contribution tracker for shared bachelor room.",
+  "icons": [
+    {
+      "src": "https://api.dicebear.com/7.x/identicon/svg?seed=RoomSplit&backgroundColor=4f46e5",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://api.dicebear.com/7.x/identicon/svg?seed=RoomSplit&backgroundColor=4f46e5",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "scope": "/"
+}

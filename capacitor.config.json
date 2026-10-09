@@ -1,0 +1,8 @@
+{
+  "appId": "com.gharkharcha.app",
+  "appName": "Ghar Kharcha",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
