@@ -20,6 +20,7 @@ import {
   INITIAL_CONTRIBUTIONS,
   INITIAL_EXPENSES,
 } from './mockData';
+import { supabase, isSupabaseConfigured } from './supabase';
 
 const STORAGE_KEY = 'roomsplit_real_app_state_v4';
 const AUTH_KEY = 'roomsplit_logged_in_user_id';
@@ -148,6 +149,8 @@ export const calculateFinancialSummary = (
   };
 };
 
+const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window ? new BroadcastChannel('roomsplit_app_sync') : null;
+
 export const useAppState = () => {
   const [state, setState] = useState<AppState>(getInitialState);
 
@@ -155,6 +158,58 @@ export const useAppState = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     localStorage.setItem(AUTH_KEY, state.currentUser.id);
   }, [state]);
+
+  // Broadcast state changes across local browser windows/tabs and Supabase Realtime globally
+  const updateStateAndBroadcast = (updater: (prev: AppState) => AppState) => {
+    setState((prev) => {
+      const next = updater(prev);
+      if (syncChannel) {
+        syncChannel.postMessage({ type: 'STATE_UPDATE', state: next });
+      }
+      if (supabase && isSupabaseConfigured()) {
+        supabase.channel('roomsplit_global_realtime').send({
+          type: 'broadcast',
+          event: 'state_change',
+          payload: { state: next },
+        }).catch((err: any) => console.warn('Supabase broadcast sync error:', err));
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (!syncChannel) return;
+    const handleBroadcastMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'STATE_UPDATE' && event.data.state) {
+        setState((prev) => ({
+          ...event.data.state,
+          currentUser: prev.currentUser,
+        }));
+      }
+    };
+    syncChannel.addEventListener('message', handleBroadcastMessage);
+    return () => syncChannel.removeEventListener('message', handleBroadcastMessage);
+  }, []);
+
+  // Supabase Realtime Multi-Device Sync listener
+  useEffect(() => {
+    if (!supabase || !isSupabaseConfigured()) return;
+    const channel = supabase.channel('roomsplit_global_realtime');
+    channel
+      .on('broadcast', { event: 'state_change' }, (payload: any) => {
+        if (payload.payload && payload.payload.state) {
+          setState((prev) => ({
+            ...payload.payload.state,
+            currentUser: prev.currentUser,
+          }));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      if (supabase) supabase.removeChannel(channel);
+    };
+  }, []);
 
   const summary = calculateFinancialSummary(
     state.room,
@@ -284,7 +339,7 @@ export const useAppState = () => {
       memberId
     );
 
-    setState((prev) => ({
+    updateStateAndBroadcast((prev) => ({
       ...prev,
       contributions: updatedContributions,
       notifications: [adminNotif, ...prev.notifications],
@@ -382,7 +437,7 @@ export const useAppState = () => {
       );
     }
 
-    setState((prev) => ({
+    updateStateAndBroadcast((prev) => ({
       ...prev,
       contributions: updatedContributions,
       transactions: [newTx, ...prev.transactions],
@@ -421,7 +476,7 @@ export const useAppState = () => {
       'CONTRIBUTION_REJECTED'
     );
 
-    setState((prev) => ({
+    updateStateAndBroadcast((prev) => ({
       ...prev,
       contributions: updatedContributions,
       notifications: [newNotif, ...prev.notifications],
@@ -522,7 +577,7 @@ export const useAppState = () => {
       );
     }
 
-    setState((prev) => ({
+    updateStateAndBroadcast((prev) => ({
       ...prev,
       expenses: [newExpense, ...prev.expenses],
       transactions: newTransactions,
@@ -579,7 +634,7 @@ export const useAppState = () => {
       '/reimbursements'
     );
 
-    setState((prev) => ({
+    updateStateAndBroadcast((prev) => ({
       ...prev,
       expenses: updatedExpenses,
       transactions: [newTx, ...prev.transactions],
@@ -620,7 +675,7 @@ export const useAppState = () => {
       'EXPENSE_REJECTED'
     );
 
-    setState((prev) => ({
+    updateStateAndBroadcast((prev) => ({
       ...prev,
       expenses: updatedExpenses,
       notifications: [newNotif, ...prev.notifications],
@@ -697,7 +752,7 @@ export const useAppState = () => {
       'REIMBURSEMENT_PAID'
     );
 
-    setState((prev) => ({
+    updateStateAndBroadcast((prev) => ({
       ...prev,
       expenses: updatedExpenses,
       reimbursementPayments: [newPayment, ...prev.reimbursementPayments],
@@ -708,14 +763,14 @@ export const useAppState = () => {
   };
 
   const markNotificationAsRead = (id: string) => {
-    setState((prev) => ({
+    updateStateAndBroadcast((prev) => ({
       ...prev,
       notifications: prev.notifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
     }));
   };
 
   const markAllNotificationsAsRead = () => {
-    setState((prev) => ({
+    updateStateAndBroadcast((prev) => ({
       ...prev,
       notifications: prev.notifications.map((n) => ({ ...n, read: true })),
     }));
@@ -728,7 +783,7 @@ export const useAppState = () => {
       icon,
       color,
     };
-    setState((prev) => ({ ...prev, categories: [...prev.categories, newCat] }));
+    updateStateAndBroadcast((prev) => ({ ...prev, categories: [...prev.categories, newCat] }));
   };
 
   const resetToInitialSeed = () => {
