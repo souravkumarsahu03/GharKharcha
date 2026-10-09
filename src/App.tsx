@@ -35,6 +35,7 @@ export function App() {
     recordReimbursement,
     markNotificationAsRead,
     markAllNotificationsAsRead,
+    fetchCloudState,
   } = useAppState();
 
   const [activeTab, setActiveTab] = useState<TabType>('HOME');
@@ -156,6 +157,8 @@ export function App() {
             contributions={state.contributions}
             expenses={state.expenses}
             reimbursementPayments={state.reimbursementPayments}
+            onLogout={handleLogout}
+            onRefreshCloud={fetchCloudState}
           />
         )}
 

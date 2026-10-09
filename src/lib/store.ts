@@ -191,7 +191,53 @@ export const useAppState = () => {
     return () => syncChannel.removeEventListener('message', handleBroadcastMessage);
   }, []);
 
-  // Supabase Realtime Multi-Device Sync listener
+  // Supabase Realtime Multi-Device Sync listener & Cloud DB Fetcher
+  const fetchCloudState = async () => {
+    if (!supabase || !isSupabaseConfigured()) return;
+    try {
+      const [contribRes, expRes, txRes, notifRes, auditRes] = await Promise.all([
+        supabase.from('contributions').select('*'),
+        supabase.from('expenses').select('*'),
+        supabase.from('transactions').select('*'),
+        supabase.from('notifications').select('*'),
+        supabase.from('audit_logs').select('*'),
+      ]);
+
+      if (
+        !contribRes.error &&
+        !expRes.error &&
+        !txRes.error &&
+        contribRes.data &&
+        expRes.data &&
+        txRes.data
+      ) {
+        setState((prev) => ({
+          ...prev,
+          contributions: contribRes.data.length > 0 ? (contribRes.data as any) : prev.contributions,
+          expenses: expRes.data.length > 0 ? (expRes.data as any) : prev.expenses,
+          transactions: txRes.data.length > 0 ? (txRes.data as any) : prev.transactions,
+          notifications: notifRes.data && notifRes.data.length > 0 ? (notifRes.data as any) : prev.notifications,
+          auditLogs: auditRes.data && auditRes.data.length > 0 ? (auditRes.data as any) : prev.auditLogs,
+        }));
+      }
+    } catch (err) {
+      console.warn('Error fetching cloud state:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchCloudState();
+    const handleFocus = () => {
+      fetchCloudState();
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, []);
+
   useEffect(() => {
     if (!supabase || !isSupabaseConfigured()) return;
     const channel = supabase.channel('roomsplit_global_realtime');
@@ -810,5 +856,6 @@ export const useAppState = () => {
     markAllNotificationsAsRead,
     addCategory,
     resetToInitialSeed,
+    fetchCloudState,
   };
 };
